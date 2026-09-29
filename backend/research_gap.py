@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from dotenv import load_dotenv
 
@@ -136,9 +137,8 @@ def analyze_research_gaps(papers):
     # Active Gemini API model endpoints in order of priority
     models_to_try = [
         "gemini-3.5-flash",
-        "gemini-flash-latest",
-        "gemini-3.8-flash",
-        "gemini-2.5-pro"
+        "gemini-3.5-flash-lite",
+        "gemini-flash-latest"
     ]
 
     headers = {"Content-Type": "application/json"}
@@ -169,6 +169,7 @@ def analyze_research_gaps(papers):
                 continue
             elif response.status_code == 503:
                 last_error = f"Model '{model_name}' high demand (503)"
+                time.sleep(2)
                 continue
             elif response.status_code == 400:
                 return f"[!] API Error (HTTP 400): {response.text}"
