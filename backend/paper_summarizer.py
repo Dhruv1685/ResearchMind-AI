@@ -1,0 +1,150 @@
+import os
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if present
+load_dotenv()
+
+
+def get_api_key():
+    """
+    Retrieve the Gemini API key from environment variables.
+    """
+    return os.environ.get("GEMINI_API_KEY", "").strip()
+
+
+def build_summarization_prompt(title, abstract):
+    """
+    Constructs a structured, zero-hallucination prompt for the LLM.
+
+    Parameters:
+        title (str): Research paper title.
+        abstract (str): Research paper abstract.
+
+    Returns:
+        str: Formatted prompt text.
+    """
+    prompt = f"""You are an expert AI research assistant for the ResearchMind AI project.
+
+Your task is to analyze the provided research paper title and abstract, and generate a concise, structured summary.
+
+CRITICAL CONSTRAINTS TO PREVENT HALLUCINATION:
+1. Base your summary ONLY on the information explicitly provided in the title and abstract below.
+2. Do NOT invent, assume, or extrapolate facts, results, datasets, or conclusions not directly supported by the text.
+3. If the abstract does not contain sufficient details for a specific section, write EXACTLY: "Not specified in the provided abstract."
+4. Maintain a clear distinction between directly stated facts and analytical interpretation.
+
+---
+PAPER TITLE: {title}
+
+PAPER ABSTRACT: {abstract}
+---
+
+Please generate a clean, structured summary with EXACTLY the following 7 sections:
+
+### 1. Research Problem
+(What specific problem or challenge does this paper address?)
+
+### 2. Objective
+(What is the main goal or objective of this research?)
+
+### 3. Methodology
+(What approach, algorithms, model, or methods did the researchers use?)
+
+### 4. Key Findings
+(What key results, discoveries, or outcomes did the researchers find?)
+
+### 5. Key Contribution
+(What is the primary contribution of this paper to the field?)
+
+### 6. Limitations
+(What limitations are mentioned or apparent from the provided text?)
+
+### 7. Simple Explanation
+(Explain the paper's core concept in 2-3 simple, beginner-friendly sentences.)
+"""
+    return prompt
+
+
+def summarize_paper(title, abstract):
+    """
+    Generates a structured research paper summary using Google Gemini LLM API.
+
+    Parameters:
+        title (str): Paper title.
+        abstract (str): Paper abstract.
+
+    Returns:
+        str: Generated structured summary or error message.
+    """
+    # 1. Handle empty or missing title/abstract
+    if not title:
+        title = "Untitled Paper"
+
+    if not abstract or abstract.strip() == "No abstract available for this paper.":
+        return "[!] Cannot generate summary: No abstract is available for this paper."
+
+    # Handle overly long input by truncating abstract to ~3000 chars (~600 words)
+    if len(abstract) > 3000:
+        abstract = abstract[:3000] + "... [Abstract truncated for length]"
+
+    # 2. Check for API Key
+    api_key = get_api_key()
+
+    if not api_key:
+        return (
+            "\n[!] GEMINI_API_KEY environment variable is not set.\n"
+            "[!] How to fix:\n"
+            "    1. Create a file named '.env' in your project root folder.\n"
+            "    2. Add your Google Gemini API key: GEMINI_API_KEY=your_key_here\n"
+            "    3. Get a free API key at: https://aistudio.google.com/app/apikey"
+        )
+
+    # 3. Build Prompt
+    prompt = build_summarization_prompt(title, abstract)
+
+    # 4. Call Google Gemini API (REST Endpoint)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2  # Low temperature for factual, deterministic output
+        }
+    }
+
+    print("\n[+] Generating AI structured summary using Gemini LLM...")
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=20)
+
+        if response.status_code == 400:
+            return "[!] API Error: Invalid request or invalid API key. Please check your GEMINI_API_KEY."
+        elif response.status_code == 429:
+            return "[!] API Rate Limit Exceeded: Please wait a minute before generating another summary."
+        
+        response.raise_for_status()
+
+        result = response.json()
+
+        # Extract generated text from Gemini API response payload
+        candidates = result.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if parts:
+                return parts[0].get("text", "No summary text generated.")
+
+        return "[!] Failed to parse summary from API response."
+
+    except requests.exceptions.ConnectionError:
+        return "[!] Network Error: Unable to connect to the internet to reach Gemini API."
+    except requests.exceptions.Timeout:
+        return "[!] Timeout Error: Gemini LLM API took too long to respond."
+    except requests.exceptions.HTTPError as http_err:
+        return f"[!] HTTP Error during summarization: {http_err}"
+    except Exception as e:
+        return f"[!] Unexpected Error during summarization: {str(e)}"
