@@ -16,6 +16,7 @@ def get_api_key():
 def format_papers_for_prompt(papers):
     """
     Formats multiple papers (titles, abstracts, and optional summaries) into a structured text context.
+    Truncates overly long abstracts to keep payload compact and fast.
 
     Parameters:
         papers (list): List of paper dictionaries.
@@ -30,16 +31,24 @@ def format_papers_for_prompt(papers):
         paper_id = paper.get("paperId", "N/A")
         year = paper.get("year", "N/A")
         abstract = paper.get("abstract", "No abstract available.")
-        summary = paper.get("summary", "No pre-generated summary.")
+        summary = paper.get("summary", "")
+
+        # Truncate abstract if longer than 1200 chars for concise context window
+        if len(abstract) > 1200:
+            abstract_text = abstract[:1200] + "... [Abstract truncated]"
+        else:
+            abstract_text = abstract
 
         block = (
             f"--- PAPER #{idx} ---\n"
             f"Title: {title}\n"
             f"Paper ID: {paper_id} (Year: {year})\n"
-            f"Abstract: {abstract}\n"
+            f"Abstract: {abstract_text}\n"
         )
+
         if summary and summary != "No pre-generated summary.":
-            block += f"Structured Summary: {summary}\n"
+            # Trim pre-generated summary to 500 chars max
+            block += f"Structured Summary Snippet: {summary[:500]}...\n"
 
         context_blocks.append(block)
 
@@ -152,7 +161,8 @@ def analyze_research_gaps(papers):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=25)
+            # 60-second timeout to comfortably process large multi-paper queries (10+ papers)
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
 
             if response.status_code == 404:
                 last_error = f"Model '{model_name}' not found"
@@ -178,7 +188,7 @@ def analyze_research_gaps(papers):
         except requests.exceptions.ConnectionError:
             return "[!] Network Error: Unable to connect to the internet to reach Gemini API."
         except requests.exceptions.Timeout:
-            return "[!] Timeout Error: Gemini LLM API took too long to respond."
+            return "[!] Timeout Error: Gemini LLM API took too long to respond (> 60 seconds)."
         except requests.exceptions.HTTPError as http_err:
             last_error = f"HTTP Error ({response.status_code}): {http_err}"
             continue
