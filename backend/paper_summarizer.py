@@ -103,9 +103,14 @@ def summarize_paper(title, abstract):
     # 3. Build Prompt
     prompt = build_summarization_prompt(title, abstract)
 
-    # List of Gemini model names to try in order of preference
-    models_to_try = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
-    
+    # Active Gemini API model endpoints in order of priority
+    models_to_try = [
+        "gemini-3.5-flash",
+        "gemini-flash-latest",
+        "gemini-3.8-flash",
+        "gemini-2.5-pro"
+    ]
+
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [
@@ -130,13 +135,13 @@ def summarize_paper(title, abstract):
             response = requests.post(url, json=payload, headers=headers, timeout=20)
 
             if response.status_code == 404:
-                # Try next model endpoint if 404
-                last_error = f"Model '{model_name}' not found."
+                last_error = f"Model '{model_name}' not found"
+                continue
+            elif response.status_code == 503:
+                last_error = f"Model '{model_name}' high demand (503)"
                 continue
             elif response.status_code == 400:
-                return "[!] API Error (HTTP 400): Invalid request or invalid API key. Please check your GEMINI_API_KEY in .env."
-            elif response.status_code == 429:
-                return "[!] API Rate Limit Exceeded (HTTP 429): Please wait a minute before trying again."
+                return f"[!] API Error (HTTP 400): {response.text}"
 
             response.raise_for_status()
 
@@ -161,4 +166,4 @@ def summarize_paper(title, abstract):
         except Exception as e:
             return f"[!] Unexpected Error during summarization: {str(e)}"
 
-    return f"[!] API Error: Could not reach Gemini model endpoint ({last_error}). Please check your GEMINI_API_KEY."
+    return f"[!] API Error: Could not reach Gemini model endpoint ({last_error}). Please verify your GEMINI_API_KEY."
