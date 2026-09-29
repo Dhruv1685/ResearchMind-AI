@@ -103,8 +103,9 @@ def summarize_paper(title, abstract):
     # 3. Build Prompt
     prompt = build_summarization_prompt(title, abstract)
 
-    # 4. Call Google Gemini API (REST Endpoint)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    # List of Gemini model names to try in order of preference
+    models_to_try = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+    
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [
@@ -119,32 +120,45 @@ def summarize_paper(title, abstract):
 
     print("\n[+] Generating AI structured summary using Gemini LLM...")
 
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=20)
+    last_error = ""
 
-        if response.status_code == 400:
-            return "[!] API Error: Invalid request or invalid API key. Please check your GEMINI_API_KEY."
-        elif response.status_code == 429:
-            return "[!] API Rate Limit Exceeded: Please wait a minute before generating another summary."
-        
-        response.raise_for_status()
+    # Try model endpoints with automatic fallback
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
-        result = response.json()
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=20)
 
-        # Extract generated text from Gemini API response payload
-        candidates = result.get("candidates", [])
-        if candidates:
-            parts = candidates[0].get("content", {}).get("parts", [])
-            if parts:
-                return parts[0].get("text", "No summary text generated.")
+            if response.status_code == 404:
+                # Try next model endpoint if 404
+                last_error = f"Model '{model_name}' not found."
+                continue
+            elif response.status_code == 400:
+                return "[!] API Error (HTTP 400): Invalid request or invalid API key. Please check your GEMINI_API_KEY in .env."
+            elif response.status_code == 429:
+                return "[!] API Rate Limit Exceeded (HTTP 429): Please wait a minute before trying again."
 
-        return "[!] Failed to parse summary from API response."
+            response.raise_for_status()
 
-    except requests.exceptions.ConnectionError:
-        return "[!] Network Error: Unable to connect to the internet to reach Gemini API."
-    except requests.exceptions.Timeout:
-        return "[!] Timeout Error: Gemini LLM API took too long to respond."
-    except requests.exceptions.HTTPError as http_err:
-        return f"[!] HTTP Error during summarization: {http_err}"
-    except Exception as e:
-        return f"[!] Unexpected Error during summarization: {str(e)}"
+            result = response.json()
+
+            # Extract generated text from Gemini API response payload
+            candidates = result.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if parts:
+                    return parts[0].get("text", "No summary text generated.")
+
+            return "[!] Failed to parse summary text from API response."
+
+        except requests.exceptions.ConnectionError:
+            return "[!] Network Error: Unable to connect to the internet to reach Gemini API."
+        except requests.exceptions.Timeout:
+            return "[!] Timeout Error: Gemini LLM API took too long to respond."
+        except requests.exceptions.HTTPError as http_err:
+            last_error = f"HTTP Error ({response.status_code}): {http_err}"
+            continue
+        except Exception as e:
+            return f"[!] Unexpected Error during summarization: {str(e)}"
+
+    return f"[!] API Error: Could not reach Gemini model endpoint ({last_error}). Please check your GEMINI_API_KEY."
