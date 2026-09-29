@@ -1,0 +1,6 @@
+streamlit
+requests
+sentence-transformers
+scikit-learn
+numpy
+python-dotenv
