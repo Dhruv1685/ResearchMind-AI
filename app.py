@@ -54,7 +54,7 @@ with st.sidebar:
     st.divider()
     st.markdown("### 🧠 System Architecture")
     st.markdown("""
-    * **Module 1 (Search):** arXiv Open API
+    * **Module 1 (Search):** arXiv CSV Dataset (287,000+ papers) & arXiv API
     * **Module 2 (ML):** Sentence-BERT (`384D`) + Cosine Similarity
     * **Module 3 (AI):** Gemini LLM Structured Summarizer
     * **Module 4 (AI):** Multi-Paper Research Gap Synthesizer
@@ -64,6 +64,14 @@ with st.sidebar:
 # SECTION 1: RESEARCH PAPER SEARCH (MODULE 1)
 # -------------------------------------------------------------
 st.header("1. 🔍 Search Research Papers")
+
+search_source = st.radio(
+    "Search Data Source:",
+    options=["📁 arXiv CSV Dataset (287,000+ papers)", "🌐 arXiv Live API"],
+    index=0,
+    horizontal=True,
+    help="Select whether to search the imported arXiv CSV dataset (ultra-fast) or live arXiv API."
+)
 
 col1, col2 = st.columns([3, 1])
 with col1:
@@ -75,8 +83,10 @@ if st.button("Search Papers", type="primary"):
     if not topic_input.strip():
         st.error("Please enter a research topic to search.")
     else:
-        with st.spinner(f"Searching arXiv repository for '{topic_input}'..."):
-            retrieved_papers = search_papers(topic_input.strip(), limit=int(limit_input))
+        src_key = "dataset" if "CSV" in search_source else "api"
+        source_label = "arXiv CSV Dataset" if src_key == "dataset" else "arXiv API"
+        with st.spinner(f"Searching {source_label} for '{topic_input}'..."):
+            retrieved_papers = search_papers(topic_input.strip(), limit=int(limit_input), source=src_key)
             if retrieved_papers:
                 st.session_state["papers"] = retrieved_papers
                 st.session_state["last_topic"] = topic_input
@@ -84,7 +94,7 @@ if st.button("Search Papers", type="primary"):
                 st.session_state["recommendations"] = []
                 st.session_state["summaries"] = {}
                 st.session_state["gap_report"] = ""
-                st.success(f"Successfully retrieved {len(retrieved_papers)} research papers!")
+                st.success(f"Successfully retrieved {len(retrieved_papers)} research papers from {source_label}!")
             else:
                 st.error("No papers found for this topic. Try a different research topic.")
 
