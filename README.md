@@ -2,7 +2,7 @@
 
 **Intelligent Research Paper Recommendation, Summarization & Research Gap Discovery**
 
-An AI/ML-powered academic research assistant designed to search academic literature, generate sentence-level embeddings for paper recommendations, produce structured summaries using LLMs, and synthesize potential research gaps across multiple papers.
+An AI/ML-powered academic research assistant designed to search academic literature via **arXiv Scientific CSV Dataset (287,000+ papers)** or **arXiv Open API**, generate sentence-level embeddings for paper recommendations, produce structured summaries using LLMs, and synthesize potential research gaps across multiple papers.
 
 ---
 
@@ -12,7 +12,7 @@ Navigating hundreds of scientific publications during literature review is time-
 ---
 
 ## 🎯 Project Objectives
-1. **Automate Literature Retrieval:** Fetch research paper titles, authors, publication years, abstracts, and URLs via open academic APIs.
+1. **Automate Literature Retrieval:** Search over **287,000+ scientific papers** locally from the pre-imported arXiv dataset (`dataset/arXiv_scientific_dataset.csv`) or fetch real-time publications via the arXiv Open API.
 2. **Semantic Paper Recommendation (ML):** Map paper text into continuous 384-dimensional vector embeddings using **Sentence-BERT (`all-MiniLM-L6-v2`)** and rank recommendations via **Cosine Similarity**.
 3. **Structured AI Summarization (GenAI):** Use **Google Gemini Large Language Model (LLM)** to decompose complex paper abstracts into 7 factual, structured sections without hallucinating missing details.
 4. **Potential Research Gap Discovery (GenAI):** Synthesize findings across multiple selected papers to identify common themes, limitations, potential research gaps, and future research directions.
@@ -26,13 +26,17 @@ Navigating hundreds of scientific publications during literature review is time-
                                 (Streamlit Web App)
                                          │
                                          ▼
-                               Enter Research Topic
+                               Select Search Source
+                       ┌─────────────────┴─────────────────┐
+                       │                                   │
+                       ▼                                   ▼
+          📁 arXiv CSV Dataset                     🌐 arXiv Open API
+           (287,000+ Papers)                       (Live Academic Feed)
+                       │                                   │
+                       └─────────────────┬─────────────────┘
                                          │
                                          ▼
-                            arXiv Academic Repository API
-                                         │
-                                         ▼
-                               Retrieved Research Papers
+                             Retrieved Research Papers
                                          │
                   ┌──────────────────────┴──────────────────────┐
                   │                                             │
@@ -62,9 +66,31 @@ Navigating hundreds of scientific publications during literature review is time-
 
 ---
 
+## 🌿 Git Branching & Version Backup
+
+To preserve flexibility and safeguard previous working versions, the repository maintains dedicated git branches:
+
+| Branch Name | Description | Use Case |
+| :--- | :--- | :--- |
+| **`dataset-version`** | Integrates local **arXiv CSV Dataset** (287k+ papers) with automatic fallback to arXiv API. | **Current Primary Version** |
+| **`api-backup`** | Pure API version without local CSV dataset dependency. | **Backup Version** (pull if API-only operation is required) |
+| **`main`** | Core stable repository branch. | Main Production Branch |
+
+*To switch between versions at any time:*
+```bash
+# Switch to API-only backup version:
+git checkout api-backup
+
+# Switch to CSV Dataset version:
+git checkout dataset-version
+```
+
+---
+
 ## 🛠️ Technology Stack
 * **Programming Language:** Python 3.10+
 * **Frontend Web UI:** Streamlit
+* **Data Processing & Search:** `pandas`, `re`, CSV Dataset indexing
 * **Academic Search API:** arXiv Atom/XML API
 * **Machine Learning & Embeddings:** `sentence-transformers` (`all-MiniLM-L6-v2`), `scikit-learn` (`cosine_similarity`), `numpy`
 * **Generative AI & LLM:** Google Gemini API (`gemini-3.5-flash`), `requests`, `python-dotenv`
@@ -73,10 +99,10 @@ Navigating hundreds of scientific publications during literature review is time-
 
 ## 🧩 Module Breakdown
 
-### Module 1: Research Paper Search
-* Queries the **arXiv Academic Repository API** for a user-specified topic.
-* Retrieves paper titles, authors, publication years, URLs, arXiv IDs, and abstracts.
-* Handles network timeouts and missing metadata gracefully.
+### Module 1: Research Paper Search (Dual Source)
+* **Local CSV Dataset Search:** Fast keyword and relevance search over `dataset/arXiv_scientific_dataset.csv` containing **287,421 research papers** with columns: `id`, `title`, `category`, `published_date`, `authors`, `summary`.
+* **arXiv Open API Search:** Live online query execution against the arXiv Open Academic Repository.
+* **Automatic Fallback:** Gracefully switches to live API search if local dataset query produces no results or file is missing.
 
 ### Module 2: ML-Based Paper Recommendation
 * Combines paper titles and abstracts into textual representations.
@@ -121,7 +147,16 @@ cd ResearchMind-AI
 pip install -r requirements.txt
 ```
 
-### 3. Configure API Key
+### 3. Dataset Placement
+Ensure your CSV dataset file is located in the `dataset/` folder:
+```
+ResearchMind-AI/
+└── dataset/
+    └── arXiv_scientific_dataset.csv
+```
+*(Note: Large `.csv` files are git-ignored by default to comply with GitHub file size limits, while folder structure is maintained via `dataset/.gitkeep`)*
+
+### 4. Configure API Key
 1. Obtain a free Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 2. Copy `.env.example` to `.env`:
    ```bash
@@ -154,5 +189,5 @@ The application will automatically open in your default browser at `http://local
 ---
 
 ## ⚠️ Limitations & Future Scope
-* **Current Limitations:** Analyzes arXiv open-access repository papers and relies on title + abstract metadata (PDF full-text parsing not included in V1).
+* **Current Limitations:** Analyzes arXiv open-access repository papers and local dataset abstracts (PDF full-text parsing not included in V1).
 * **Future Scope:** Integration of PDF parsing (PyPDF2/PDFPlumber), Vector Database storage (ChromaDB/FAISS), Retrieval-Augmented Generation (RAG), and journal impact factor integration.
