@@ -1,0 +1,125 @@
+ResearchMind AI - How to Run
+============================
+
+The app has two parts that must run at the same time:
+  1. FastAPI backend  -> http://127.0.0.1:8000
+  2. Next.js dashboard -> http://localhost:3000
+
+
+PREREQUISITES
+-------------
+- Python 3.10+
+- Node.js 18+ (Node 22 recommended)
+- Gemini API key (free at https://aistudio.google.com/app/apikey)
+- dataset/arXiv_scientific_dataset.csv present in the project
+
+
+STEP 1 - ONE TIME SETUP
+------------------------
+Open a terminal in the project root (ResearchMind-AI).
+
+  pip install -r requirements.txt
+
+  cd frontend
+  npm install
+  cd ..
+
+
+STEP 2 - CONFIGURE THE API KEY
+-------------------------------
+Copy .env.example to .env and add your key:
+
+  GEMINI_API_KEY=your_gemini_api_key_here
+
+Without this key, search and recommendations still work, but
+summarization and research gap analysis are disabled.
+
+
+STEP 3 - START THE BACKEND (TERMINAL 1)
+----------------------------------------
+From the project root:
+
+  python server.py
+
+Or:
+
+  python -m uvicorn server:app --host 127.0.0.1 --port 8000
+
+Wait until you see: Uvicorn running on http://127.0.0.1:8000
+
+NOTE: The first startup can take up to ~45 seconds because
+Python imports sentence-transformers and pandas. Be patient
+and do not close the terminal. It only happens once per start.
+
+
+STEP 4 - START THE DASHBOARD (TERMINAL 2)
+------------------------------------------
+From the project root:
+
+  cd frontend
+  npm run dev
+
+Wait until you see: Ready in ...
+
+
+STEP 5 - OPEN THE DASHBOARD
+-----------------------------
+Open your browser at:
+
+  http://localhost:3000
+
+
+WHAT TO DO IN THE DASHBOARD
+---------------------------
+01 / Search
+  Pick a source (CSV dataset or arXiv API), type a research
+  topic, set the paper count, press "Search papers".
+
+02 / Recommendation
+  Choose a primary paper, press "Find similar papers".
+  Papers are ranked by cosine similarity of 384D
+  Sentence-BERT embeddings.
+
+03 / Summarization
+  Choose a paper, press "Generate summary" for a 7-part
+  structured summary from the Gemini LLM.
+
+04 / Research gaps
+  Tick 2 or more papers, press "Analyze research gaps" for
+  themes, limitations, gaps and future directions.
+
+
+OPTIONAL - CHANGE API ADDRESS
+-----------------------------
+The frontend calls http://127.0.0.1:8000 by default.
+To change it, create frontend/.env.local:
+
+  NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+
+
+USEFUL COMMANDS
+---------------
+Check API health:
+  http://127.0.0.1:8000/api/status
+
+Stop a server:
+  Press Ctrl + C in its terminal
+
+
+TROUBLESHOOTING
+---------------
+Dashboard shows "API server is not reachable":
+  The backend in Terminal 1 is not running. Start it with
+  python server.py
+
+Summarization / Gap buttons do nothing:
+  GEMINI_API_KEY is missing. Add it to .env and restart
+  the backend.
+
+First search is slow:
+  The 287,000+ paper CSV is loaded and cached on the first
+  request. Later searches are fast.
+
+"No papers found":
+  Try a different topic, or switch the source to the
+  arXiv API.
