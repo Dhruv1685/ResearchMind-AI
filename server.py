@@ -7,6 +7,8 @@ as REST endpoints consumed by the shadcn/ui dashboard.
 """
 
 import os
+import threading
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -20,12 +22,42 @@ from backend.research_gap import analyze_research_gaps
 
 load_dotenv()
 
-app = FastAPI(title="ResearchMind AI API", version="1.0.0")
+LOCAL_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+
+def build_allowed_origins() -> list[str]:
+    """Comma-separated ALLOWED_ORIGINS env var, otherwise allow any origin."""
+    raw = os.environ.get("ALLOWED_ORIGINS", "").strip()
+    if not raw:
+        return ["*"]
+    return LOCAL_ORIGINS + [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+def warm_models() -> None:
+    """Pre-load the Sentence-BERT model so the first recommendation is fast."""
+    if os.environ.get("WARM_MODELS", "1").strip().lower() in ("0", "false", "no"):
+        return
+    try:
+        from backend.paper_recommender import get_model
+
+        get_model()
+        print("[+] Sentence-BERT model warmed up.")
+    except Exception as exc:
+        print(f"[!] Model warm-up skipped: {exc}")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    threading.Thread(target=warm_models, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="ResearchMind AI API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
+    allow_origins=build_allowed_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -83,15 +115,18 @@ def status():
 @app.post("/api/search")
 def search(req: SearchRequest):
     source = req.source if req.source in ("dataset", "api") else "dataset"
+    dataset_present = os.path.exists(DATASET_PATH)
     try:
         papers = search_papers(req.query.strip(), limit=req.limit, source=source)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Search failed: {exc}") from exc
 
+    effective_source = "dataset" if source == "dataset" and dataset_present else "api"
+
     return {
         "papers": [p.model_dump() if isinstance(p, Paper) else p for p in papers],
         "count": len(papers),
-        "source": source,
+        "source": effective_source,
         "query": req.query.strip(),
     }
 
@@ -165,4 +200,4 @@ def gap(req: GapRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("server:app", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")), reload=False)

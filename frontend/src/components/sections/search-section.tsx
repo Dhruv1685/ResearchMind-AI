@@ -17,9 +17,11 @@ const SOURCE_LABEL: Record<SearchSource, string> = {
 
 export function SearchSection({
   papers,
+  datasetAvailable,
   onResults,
 }: {
   papers: Paper[];
+  datasetAvailable: boolean | null;
   onResults: (papers: Paper[]) => void;
 }) {
   const [source, setSource] = useState<SearchSource>("dataset");
@@ -58,7 +60,8 @@ export function SearchSection({
 
       onResults(result.papers);
       setSearchKey((current) => current + 1);
-      setNotice(`Retrieved ${result.papers.length} papers from ${SOURCE_LABEL[source]}.`);
+      const used = SOURCE_LABEL[result.source as SearchSource] ?? "arXiv API";
+      setNotice(`Retrieved ${result.papers.length} papers from ${used}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed.");
     } finally {
@@ -79,6 +82,12 @@ export function SearchSection({
             <TabsTrigger value="api">arXiv API</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {datasetAvailable === false ? (
+          <p className="text-sm text-muted-foreground">
+            CSV dataset not found in this environment. Searches run against the live arXiv API.
+          </p>
+        ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex flex-1 flex-col gap-1.5">
